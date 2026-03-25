@@ -50,6 +50,8 @@ def drawn_detections(detections, threshold, cats, im, K, cfg):
     if len(meshes) > 0:
         return vis.draw_scene_view(im, K, meshes, text=meshes_text, scale=im.shape[0], blend_weight=0.5, blend_weight_overlay=0.85, device=cfg.MODEL.DEVICE)
 
+    return False
+
 
 def infer_image(im, principal_point, augmentations, model, focal_length, cfg):
     if im is None:

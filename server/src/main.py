@@ -47,7 +47,7 @@ class ImageParams3D(BaseModel):
     focal_length: Optional[float] = 0
     principal_point: Optional[Tuple[float, float]] = []
     model: Literal["DLA", "Res"] = "Res"
-    device: Literal["cpu", "gpu"] = "cpu"
+    device: Literal["cpu", "cuda"] = "cpu"
     config_file: Optional[str] = None
     opts: Optional[List[str]] = None
 
@@ -76,6 +76,10 @@ async def object_detection_3d(
     contents = await file.read()
     image = cv2.imdecode(np.frombuffer(contents, np.uint8), cv2.IMREAD_COLOR)
     image_with_boxes = complete_3d_object_detection(parsed_params, image)
+
+    if type(image_with_boxes) == type(False) and image_with_boxes == False:
+        image_with_boxes = image
+
 
     _, buffer = cv2.imencode(".jpg", image_with_boxes)
     return StreamingResponse(
