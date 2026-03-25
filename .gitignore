@@ -1,2 +1,3 @@
 ai/models/yolov8n.pt
 output/
+__pycache__/
