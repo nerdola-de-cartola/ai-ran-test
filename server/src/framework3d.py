@@ -22,7 +22,7 @@ sys.dont_write_bytecode = True
 sys.path.append(os.getcwd())
 np.set_printoptions(suppress=True)
 
-def drawn_detections(detections, threshold, cats, im_name, im, K, cfg):
+def drawn_detections(detections, threshold, cats, im, K, cfg):
     n_det = len(detections)
     meshes = []
     meshes_text = []
@@ -45,11 +45,10 @@ def drawn_detections(detections, threshold, cats, im_name, im, K, cfg):
             box_mesh = util.mesh_cuboid(bbox3D, pose.tolist(), color=color)
             meshes.append(box_mesh)
 
-    print('File: {} with {} detections'.format(im_name, len(meshes)))
+    print('File with {} detections'.format(len(meshes)))
 
     if len(meshes) > 0:
         return vis.draw_scene_view(im, K, meshes, text=meshes_text, scale=im.shape[0], blend_weight=0.5, blend_weight_overlay=0.85, device=cfg.MODEL.DEVICE)
-        
 
 
 def infer_image(im, principal_point, augmentations, model, focal_length, cfg):
@@ -88,10 +87,7 @@ def infer_image(im, principal_point, augmentations, model, focal_length, cfg):
 
     return detections, K
 
-def do_test(params, cfg, model):
-
-    list_of_ims = ["ai/input.jpg"]
-
+def do_test(params, cfg, model, image):
     model.eval()
     
     focal_length = params.focal_length
@@ -111,16 +107,14 @@ def do_test(params, cfg, model):
     metadata = util.load_json(category_path)
     cats = metadata['thing_classes']
     
-    for path in list_of_ims:
-        im_name = util.file_parts(path)[1]
-        im = util.imread(path)
+    detections, K = infer_image(image, principal_point, augmentations, model, focal_length, cfg)
+    result = drawn_detections(detections, threshold, cats, image, K, cfg)
 
-        detections, K = infer_image(im, principal_point, augmentations, model, focal_length, cfg)
-        im_drawn_rgb, im_topdown, _ = drawn_detections(detections, threshold, cats, im_name, im, K, cfg)
+    if result:
+        im_drawn_rgb, im_topdown, _ = result
+        return im_drawn_rgb
 
-        if params.display:
-            im_concat = np.concatenate((im_drawn_rgb, im_topdown), axis=1)
-            vis.imshow(im_concat)
+    return False
 
 
 def setup(params):
@@ -142,6 +136,17 @@ def setup(params):
     default_setup(cfg, params)
     return cfg
 
+def complete_3d_object_detection(params, image):
+    cfg = setup(params)
+    model = build_model(cfg)
+    
+    DetectionCheckpointer(model).resume_or_load(
+        cfg.MODEL.WEIGHTS, resume=True
+    )
+
+    with torch.no_grad():
+        return do_test(params, cfg, model, image)
+
 class Parameters:
     def __init__(self, threshold, focal_length, principal_point, display, model, device):
         self.threshold = threshold
@@ -156,17 +161,6 @@ class Parameters:
             self.config_file = "cubercnn://omni3d/cubercnn_Res34_FPN.yaml"
             self.opts=['MODEL.WEIGHTS', 'cubercnn://omni3d/cubercnn_Res34_FPN.pth', 'MODEL.DEVICE', device]
 
-def main(params):
-    cfg = setup(params)
-    model = build_model(cfg)
-    
-    DetectionCheckpointer(model).resume_or_load(
-        cfg.MODEL.WEIGHTS, resume=True
-    )
-
-    with torch.no_grad():
-        do_test(params, cfg, model)
-
 if __name__ == "__main__":
-    params = Parameters(0.25, 0, [], True, "Res", "cpu")
-    main(params)
+    params = Parameters(0.25, 0, [], False, "Res", "cpu")
+    complete_3d_object_detection(params)

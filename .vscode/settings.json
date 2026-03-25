@@ -5,7 +5,12 @@
         "ascontiguousarray",
         "bboxes",
         "Checkpointer",
+        "frombuffer",
+        "imdecode",
+        "imencode",
         "printoptions",
-        "topdown"
+        "tobytes",
+        "topdown",
+        "yolov"
     ]
 }
