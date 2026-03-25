@@ -88,21 +88,21 @@ def infer_image(im, principal_point, augmentations, model, focal_length, cfg):
 
     return detections, K
 
-def do_test(args, cfg, model):
+def do_test(params, cfg, model):
 
     list_of_ims = ["ai/input.jpg"]
 
     model.eval()
     
-    focal_length = args.focal_length
-    principal_point = args.principal_point
-    threshold = args.threshold
+    focal_length = params.focal_length
+    principal_point = params.principal_point
+    threshold = params.threshold
 
     min_size = cfg.INPUT.MIN_SIZE_TEST
     max_size = cfg.INPUT.MAX_SIZE_TEST
     augmentations = T.AugmentationList([T.ResizeShortestEdge(min_size, max_size, "choice")])
 
-    category_path = os.path.join(util.file_parts(args.config_file)[0], 'category_meta.json')
+    category_path = os.path.join(util.file_parts(params.config_file)[0], 'category_meta.json')
         
     # store locally if needed
     if category_path.startswith(util.CubeRCNNHandler.PREFIX):
@@ -118,32 +118,46 @@ def do_test(args, cfg, model):
         detections, K = infer_image(im, principal_point, augmentations, model, focal_length, cfg)
         im_drawn_rgb, im_topdown, _ = drawn_detections(detections, threshold, cats, im_name, im, K, cfg)
 
-        if args.display:
+        if params.display:
             im_concat = np.concatenate((im_drawn_rgb, im_topdown), axis=1)
             vis.imshow(im_concat)
 
 
-def setup(args):
+def setup(params):
     """
     Create configs and perform basic setups.
     """
     cfg = get_cfg()
     get_cfg_defaults(cfg)
 
-    config_file = args.config_file
+    config_file = params.config_file
 
     # store locally if needed
     if config_file.startswith(util.CubeRCNNHandler.PREFIX):    
         config_file = util.CubeRCNNHandler._get_local_path(util.CubeRCNNHandler, config_file)
 
     cfg.merge_from_file(config_file)
-    cfg.merge_from_list(args.opts)
+    cfg.merge_from_list(params.opts)
     cfg.freeze()
-    default_setup(cfg, args)
+    default_setup(cfg, params)
     return cfg
 
-def main(args):
-    cfg = setup(args)
+class Parameters:
+    def __init__(self, threshold, focal_length, principal_point, display, model, device):
+        self.threshold = threshold
+        self.focal_length = focal_length
+        self.principal_point = principal_point
+        self.display = display
+
+        if model == "DLA":
+            self.config_file = "cubercnn://omni3d/cubercnn_DLA34_FPN.yaml"
+            self.opts=['MODEL.WEIGHTS', 'cubercnn://omni3d/cubercnn_DLA34_FPN.pth', 'MODEL.DEVICE', device]
+        else:
+            self.config_file = "cubercnn://omni3d/cubercnn_Res34_FPN.yaml"
+            self.opts=['MODEL.WEIGHTS', 'cubercnn://omni3d/cubercnn_Res34_FPN.pth', 'MODEL.DEVICE', device]
+
+def main(params):
+    cfg = setup(params)
     model = build_model(cfg)
     
     DetectionCheckpointer(model).resume_or_load(
@@ -151,29 +165,8 @@ def main(args):
     )
 
     with torch.no_grad():
-        do_test(args, cfg, model)
+        do_test(params, cfg, model)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        epilog=None, formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    
-    parser.add_argument("--config-file", default="", metavar="FILE", help="path to config file")
-    parser.add_argument("--focal-length", type=float, default=0, help="focal length for image inputs (in px)")
-    parser.add_argument("--principal-point", type=float, default=[], nargs=2, help="principal point for image inputs (in px)")
-    parser.add_argument("--threshold", type=float, default=0.25, help="threshold on score for visualizing")
-    parser.add_argument("--display", default=False, action="store_true", help="Whether to show the images in matplotlib",)
-    
-    parser.add_argument(
-        "opts",
-        help="Modify config options by adding 'KEY VALUE' pairs at the end of the command. "
-        "See config references at "
-        "https://detectron2.readthedocs.io/modules/config.html#config-references",
-        default=None,
-        nargs=argparse.REMAINDER,
-    )
-
-    args = parser.parse_args()
-
-    print("Command Line Args:", args)
-    main(args)
+    params = Parameters(0.25, 0, [], True, "Res", "cpu")
+    main(params)
