@@ -13,6 +13,7 @@ app = FastAPI()
 # Example parameter schema
 class ImageParams2D(BaseModel):
     model: Literal["nano", "medium", "large"] = "nano"
+    device: Literal["cpu", "cuda"] = "cpu"
 
 @app.post("/2d-object-detection/")
 async def object_detection_2d(
@@ -32,7 +33,7 @@ async def object_detection_2d(
     contents = await file.read()
     image = cv2.imdecode(np.frombuffer(contents, np.uint8), cv2.IMREAD_COLOR)
 
-    image_with_boxes = complete_3d_object_detection(params)
+    image_with_boxes = object_detection(image, parsed_params.model, parsed_params.device)
 
     _, buffer = cv2.imencode(".jpg", image_with_boxes)
     return StreamingResponse(

@@ -42,13 +42,13 @@ def get_model(t):
     else:
         return False
 
-def infer(image, model):
-    results = model(image)
+def infer(image, model, device):
+    results = model(image, device=device)
     return results
 
-def object_detection(image, model_type):
+def object_detection(image, model_type, device):
     model = get_model(model_type)
-    results = infer(image, model)
+    results = infer(image, model, device)
     write_boxes_to_image(results, image, model.names)
     return image
 
