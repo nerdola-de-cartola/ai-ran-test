@@ -1,10 +1,36 @@
+from pathlib import Path
+
 import requests
 import json
 
 #BASE_URL = "http://localhost"
 BASE_URL = "http://s-brasil6g01"
+METRICS_URL = "http://s-brasil6g01:7400"
 PORT_AI = "8000"
 PORT_RAN = "8080"
+
+def start_server_measurement():
+    try:
+        response = requests.get(METRICS_URL + "/start-measurement/", params={"file_name": "server.csv"}, timeout=5)
+        print(f"Server metrics: {response.json()}")
+    except:
+        pass
+
+def end_server_measurement():
+    try:
+        response = requests.get(METRICS_URL + "/end-measurement/", params={"file_name": "server.csv"}, timeout=5)
+        print(f"Server metrics: {response.status_code}")
+
+        output_dir = Path("log/")
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        if response.status_code != 200:
+            return
+
+        file_path = output_dir / "server.csv"
+        file_path.write_text(response.text, encoding="utf-8")
+    except:
+        pass
 
 
 def save_image(response, filename):
@@ -38,7 +64,14 @@ def test_2d(image_path, model="nano", device="cpu"):
 
     response = requests.post(url, files=files, data=data)
 
-    save_image(response, "output_2d.jpg")
+    if response.status_code == 200:
+        time = response.headers["X-Time-Ms"]
+        print(f"[OK] 2D Result: {time}")
+        save_image(response, "output_2d.jpg")
+    else:
+        print(f"[ERROR] Status: {response.status_code}")
+        print(response.text)
+
 
 
 def test_3d(
@@ -69,7 +102,13 @@ def test_3d(
 
     response = requests.post(url, files=files, data=data)
 
-    save_image(response, "output_3d.jpg")
+    if response.status_code == 200:
+        time = response.headers["X-Time-Ms"]
+        print(f"[OK] 3D Result: {time}")
+        save_image(response, "output_3d.jpg")
+    else:
+        print(f"[ERROR] Status: {response.status_code}")
+        print(response.text)
 
 
 def test_ldpc(esno_db=8.4, num_prb=100, num_layers=4, num_slots=10):
@@ -85,8 +124,7 @@ def test_ldpc(esno_db=8.4, num_prb=100, num_layers=4, num_slots=10):
     response = requests.post(url, json=data)
 
     if response.status_code == 200:
-        print("[OK] LDPC Result:")
-        print(response.json())
+        print(f"[OK] LDPC Result: {response.json()}")
     else:
         print(f"[ERROR] Status: {response.status_code}")
         print(response.text)
@@ -97,8 +135,12 @@ if __name__ == "__main__":
     device = "cuda"
     #device = "cpu"
 
+    start_server_measurement()
+
     test_2d(IMAGE_PATH, model="nano", device=device)
 
     test_3d(IMAGE_PATH, model="Res", device=device)
 
     test_ldpc(num_layers=10)
+
+    end_server_measurement()
