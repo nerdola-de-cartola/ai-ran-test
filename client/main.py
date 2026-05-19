@@ -111,14 +111,13 @@ def test_3d(
         print(response.text)
 
 
-def test_ldpc(esno_db=8.4, num_prb=100, num_layers=4, num_slots=10):
+def test_ldpc(esno_db=8.4, num_prb=100, num_layers=1):
     url = f"{BASE_URL}:{PORT_RAN}/ldpc/"
 
     data = {
         "esno_db": esno_db,
         "num_prb": num_prb,
         "num_layers": num_layers,
-        "num_slots": num_slots
     }
 
     response = requests.post(url, json=data)
@@ -135,12 +134,12 @@ if __name__ == "__main__":
     device = "cuda"
     #device = "cpu"
 
-    start_server_measurement()
+    #start_server_measurement()
 
-    test_2d(IMAGE_PATH, model="nano", device=device)
+    #test_2d(IMAGE_PATH, model="nano", device=device)
 
-    test_3d(IMAGE_PATH, model="Res", device=device)
+    #test_3d(IMAGE_PATH, model="Res", device=device)
 
-    test_ldpc(num_layers=10)
+    test_ldpc(num_prb=100, num_layers=1, esno_db=8.4)
 
-    end_server_measurement()
+    #end_server_measurement()
