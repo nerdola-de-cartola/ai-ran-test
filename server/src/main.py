@@ -7,6 +7,7 @@ import numpy as np
 from yolo import object_detection
 from framework3d import complete_3d_object_detection
 import cv2
+from time import time
 
 app = FastAPI()
 
@@ -20,6 +21,9 @@ async def object_detection_2d(
     file: UploadFile = File(...),
     params: str = Form(...)
 ):
+    print("INFO: POST 2d-object-detection/")
+    start = time()
+
     # Parse JSON params
     try:
         parsed_params = ImageParams2D.model_validate_json(params)
@@ -36,9 +40,14 @@ async def object_detection_2d(
     image_with_boxes = object_detection(image, parsed_params.model, parsed_params.device)
 
     _, buffer = cv2.imencode(".jpg", image_with_boxes)
+    execution_time = (time() - start) * 1000
+
     return StreamingResponse(
         io.BytesIO(buffer.tobytes()),
-        media_type="image/jpg"
+        media_type="image/jpg",
+        headers={
+            "X-Time-Ms": str(execution_time),
+        }
     )
 
 
@@ -65,6 +74,9 @@ async def object_detection_3d(
     file: UploadFile = File(...),
     params: str = Form(...)
 ):
+    print("INFO: POST 3d-object-detection/")
+    start = time()
+    
     # Parse JSON params
     try:
         parsed_params = ImageParams3D.model_validate_json(params)
@@ -83,9 +95,14 @@ async def object_detection_3d(
 
 
     _, buffer = cv2.imencode(".jpg", image_with_boxes)
+    execution_time = (time() - start) * 1000
+
     return StreamingResponse(
         io.BytesIO(buffer.tobytes()),
-        media_type="image/jpg"
+        media_type="image/jpg",
+        headers={
+            "X-Time-Ms": str(execution_time),
+        }
     )
 
 if __name__ == "__main__":
@@ -99,17 +116,3 @@ if __name__ == "__main__":
         port=8000,
         reload=True
     )
-
-# Run with:
-# uvicorn main:app --reload
-# or simply
-# python src/main.py
-
-# Example curl:
-# curl -X POST "http://localhost:8000/process-image/" \
-#   -F "file=@input.png" \
-#   -F 'params={"text":"Hello","x":50,"y":50}' \
-#   --output output.png
-
-# Test url
-# http://localhost:8000/docs
