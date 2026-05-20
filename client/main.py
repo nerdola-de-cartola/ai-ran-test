@@ -9,13 +9,17 @@ METRICS_URL = "http://s-brasil6g01:7400"
 PORT_AI = "8000"
 PORT_RAN = "8080"
 NUM_ITERATIONS = 10
+SESSION = None
 
 async def get(url, params):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, params=params) as response:
-            return response
+    global SESSION
 
-async def post(url, files, data):
+    async with SESSION.get(url, params=params) as response:
+        return response
+
+async def post_files(url, files, data):
+    global SESSION
+
     form = aiohttp.FormData()
 
     for key in files.keys():
@@ -27,11 +31,16 @@ async def post(url, files, data):
         )
 
     for key in data.keys():
-        form.add_field(key, data[key])
+        form.add_field(key, str(data[key]))
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, data=form) as response:
-            return response
+    async with SESSION.post(url, data=form) as response:
+        return response
+        
+async def post(url, data):
+    global SESSION
+
+    async with SESSION.post(url, json=data) as response:
+        return response, await response.json()
 
 async def start_server_measurement(name):
     try:
@@ -86,7 +95,7 @@ async def test_2d(image_path, model="nano", device="cpu"):
         "params": json.dumps(params)  # IMPORTANT: string JSON
     }
 
-    response = await post(url, files=files, data=data)
+    response = await post_files(url, files=files, data=data)
 
     if response.status == 200:
         time = response.headers["X-Time-Ms"]
@@ -124,7 +133,7 @@ async def test_3d(
         "params": json.dumps(params)  # IMPORTANT
     }
 
-    response = await post(url, files=files, data=data)
+    response = await post_files(url, files=files, data=data)
 
     if response.status == 200:
         time = response.headers["X-Time-Ms"]
@@ -144,10 +153,10 @@ async def test_ldpc(esno_db=8.4, num_prb=100, num_layers=1):
         "num_layers": num_layers,
     }
 
-    response = await post(url, files={}, data=data)
+    response, data = await post(url, data=data)
 
     if response.status == 200:
-        print(f"[OK] LDPC Result: {await response.json()}")
+        print(f"[OK] LDPC Result: {data}")
     else:
         print(f"[ERROR] Status: {response.status}")
         print(await response.text())
@@ -159,14 +168,17 @@ async def experiment(file_name, func):
     requests = []
 
     for i in range(NUM_ITERATIONS):
-        print(f"ITERATION {i}")
+        #print(f"ITERATION {i}")
         requests.append(func())
 
     results = await asyncio.gather(*requests)
     await end_server_measurement(file_name)
 
 async def main():
-    global IMAGE_PATH
+    global IMAGE_PATH, SESSION
+
+    SESSION = aiohttp.ClientSession()
+
 
     #IMAGE_PATH = "images/coco_examples/3045175664_6e42bd43f3_z.jpg"
     IMAGE_PATH = "images/HYPERLAPSE_0001.JPG"
@@ -175,7 +187,7 @@ async def main():
 
     await experiment("2d.csv", lambda: test_2d(IMAGE_PATH, model="large", device=device))
     await experiment("3d.csv", lambda: test_3d(IMAGE_PATH, model="Res", device=device))
-    #await experiment("ldpc.csv", lambda: test_ldpc(num_prb=100, num_layers=1, esno_db=8.4))
+    await experiment("ldpc.csv", lambda: test_ldpc(num_prb=100, num_layers=1, esno_db=8.4))
 
 if __name__ == "__main__":
     asyncio.run(main())
