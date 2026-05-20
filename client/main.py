@@ -1,7 +1,7 @@
 from pathlib import Path
-
-import requests
 import json
+import asyncio
+import aiohttp
 
 #BASE_URL = "http://localhost"
 BASE_URL = "http://s-brasil6g01"
@@ -10,22 +10,45 @@ PORT_AI = "8000"
 PORT_RAN = "8080"
 NUM_ITERATIONS = 10
 
-def start_server_measurement(name):
+async def get(url, params):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params) as response:
+            return response
+
+async def post(url, files, data):
+    form = aiohttp.FormData()
+
+    for key in files.keys():
+        form.add_field(
+            key,
+            files[key],
+            #filename=files[key],
+            content_type="image/jpeg"
+        )
+
+    for key in data.keys():
+        form.add_field(key, data[key])
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, data=form) as response:
+            return response
+
+async def start_server_measurement(name):
     try:
-        response = requests.get(METRICS_URL + "/start-measurement/", params={"file_name": name}, timeout=5)
-        print(f"Server metrics: {response.json()}")
+        response = await get(METRICS_URL + "/start-measurement/", params={"file_name": name})
+        print(f"Server metrics: {await response.json()}")
     except:
         pass
 
-def end_server_measurement(name):
+async def end_server_measurement(name):
     try:
-        response = requests.get(METRICS_URL + "/end-measurement/", params={"file_name": name}, timeout=5)
-        print(f"Server metrics: {response.status_code}")
+        response = await get(METRICS_URL + "/end-measurement/", params={"file_name": name})
+        print(f"Server metrics: {response.status}")
 
         output_dir = Path("log/")
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        if response.status_code != 200:
+        if response.status != 200:
             return
 
         file_path = output_dir / name
@@ -47,7 +70,7 @@ def save_image(response, filename):
             print(response.text)
 
 
-def test_2d(image_path, model="nano", device="cpu"):
+async def test_2d(image_path, model="nano", device="cpu"):
     url = f"{BASE_URL}:{PORT_AI}/2d-object-detection/"
 
     params = {
@@ -63,19 +86,19 @@ def test_2d(image_path, model="nano", device="cpu"):
         "params": json.dumps(params)  # IMPORTANT: string JSON
     }
 
-    response = requests.post(url, files=files, data=data)
+    response = await post(url, files=files, data=data)
 
-    if response.status_code == 200:
+    if response.status == 200:
         time = response.headers["X-Time-Ms"]
         print(f"[OK] 2D Result: {time}")
         #save_image(response, "output_2d.jpg")
     else:
-        print(f"[ERROR] Status: {response.status_code}")
-        print(response.text)
+        print(f"[ERROR] Status: {response.status}")
+        print(await response.text())
 
 
 
-def test_3d(
+async def test_3d(
     image_path,
     model="Res",
     device="cpu",
@@ -101,18 +124,18 @@ def test_3d(
         "params": json.dumps(params)  # IMPORTANT
     }
 
-    response = requests.post(url, files=files, data=data)
+    response = await post(url, files=files, data=data)
 
-    if response.status_code == 200:
+    if response.status == 200:
         time = response.headers["X-Time-Ms"]
         print(f"[OK] 3D Result: {time}")
         #save_image(response, "output_3d.jpg")
     else:
-        print(f"[ERROR] Status: {response.status_code}")
-        print(response.text)
+        print(f"[ERROR] Status: {response.status}")
+        print(await response.text())
 
 
-def test_ldpc(esno_db=8.4, num_prb=100, num_layers=1):
+async def test_ldpc(esno_db=8.4, num_prb=100, num_layers=1):
     url = f"{BASE_URL}:{PORT_RAN}/ldpc/"
 
     data = {
@@ -121,34 +144,38 @@ def test_ldpc(esno_db=8.4, num_prb=100, num_layers=1):
         "num_layers": num_layers,
     }
 
-    response = requests.post(url, json=data)
+    response = await post(url, files={}, data=data)
 
-    if response.status_code == 200:
-        print(f"[OK] LDPC Result: {response.json()}")
+    if response.status == 200:
+        print(f"[OK] LDPC Result: {await response.json()}")
     else:
-        print(f"[ERROR] Status: {response.status_code}")
-        print(response.text)
+        print(f"[ERROR] Status: {response.status}")
+        print(await response.text())
 
+async def experiment(file_name, func):
+    global NUM_ITERATIONS
 
-if __name__ == "__main__":
-    IMAGE_PATH = "coco_examples/3045175664_6e42bd43f3_z.jpg"
+    await start_server_measurement(file_name)
+    requests = []
+
+    for i in range(NUM_ITERATIONS):
+        print(f"ITERATION {i}")
+        requests.append(func())
+
+    results = await asyncio.gather(*requests)
+    await end_server_measurement(file_name)
+
+async def main():
+    global IMAGE_PATH
+
+    #IMAGE_PATH = "images/coco_examples/3045175664_6e42bd43f3_z.jpg"
+    IMAGE_PATH = "images/HYPERLAPSE_0001.JPG"
     device = "cuda"
     #device = "cpu"
 
-    start_server_measurement("2d.csv")
-    for i in range(NUM_ITERATIONS):
-        print(f"ITERATION {i}")
-        test_2d(IMAGE_PATH, model="large", device=device)
-    end_server_measurement("2d.csv")
+    await experiment("2d.csv", lambda: test_2d(IMAGE_PATH, model="large", device=device))
+    await experiment("3d.csv", lambda: test_3d(IMAGE_PATH, model="Res", device=device))
+    #await experiment("ldpc.csv", lambda: test_ldpc(num_prb=100, num_layers=1, esno_db=8.4))
 
-    start_server_measurement("3d.csv")
-    for i in range(NUM_ITERATIONS):
-        print(f"ITERATION {i}")
-        test_3d(IMAGE_PATH, model="Res", device=device)
-    end_server_measurement("3d.csv")
-
-    start_server_measurement("ldpc.csv")
-    for i in range(NUM_ITERATIONS):
-        print(f"ITERATION {i}")
-        test_ldpc(num_prb=100, num_layers=1, esno_db=8.4)
-    end_server_measurement("ldpc.csv")
+if __name__ == "__main__":
+    asyncio.run(main())
