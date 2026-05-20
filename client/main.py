@@ -8,17 +8,18 @@ BASE_URL = "http://s-brasil6g01"
 METRICS_URL = "http://s-brasil6g01:7400"
 PORT_AI = "8000"
 PORT_RAN = "8080"
+NUM_ITERATIONS = 10
 
-def start_server_measurement():
+def start_server_measurement(name):
     try:
-        response = requests.get(METRICS_URL + "/start-measurement/", params={"file_name": "server.csv"}, timeout=5)
+        response = requests.get(METRICS_URL + "/start-measurement/", params={"file_name": name}, timeout=5)
         print(f"Server metrics: {response.json()}")
     except:
         pass
 
-def end_server_measurement():
+def end_server_measurement(name):
     try:
-        response = requests.get(METRICS_URL + "/end-measurement/", params={"file_name": "server.csv"}, timeout=5)
+        response = requests.get(METRICS_URL + "/end-measurement/", params={"file_name": name}, timeout=5)
         print(f"Server metrics: {response.status_code}")
 
         output_dir = Path("log/")
@@ -27,7 +28,7 @@ def end_server_measurement():
         if response.status_code != 200:
             return
 
-        file_path = output_dir / "server.csv"
+        file_path = output_dir / name
         file_path.write_text(response.text, encoding="utf-8")
     except:
         pass
@@ -67,7 +68,7 @@ def test_2d(image_path, model="nano", device="cpu"):
     if response.status_code == 200:
         time = response.headers["X-Time-Ms"]
         print(f"[OK] 2D Result: {time}")
-        save_image(response, "output_2d.jpg")
+        #save_image(response, "output_2d.jpg")
     else:
         print(f"[ERROR] Status: {response.status_code}")
         print(response.text)
@@ -105,7 +106,7 @@ def test_3d(
     if response.status_code == 200:
         time = response.headers["X-Time-Ms"]
         print(f"[OK] 3D Result: {time}")
-        save_image(response, "output_3d.jpg")
+        #save_image(response, "output_3d.jpg")
     else:
         print(f"[ERROR] Status: {response.status_code}")
         print(response.text)
@@ -134,12 +135,20 @@ if __name__ == "__main__":
     device = "cuda"
     #device = "cpu"
 
-    #start_server_measurement()
+    start_server_measurement("2d.csv")
+    for i in range(NUM_ITERATIONS):
+        print(f"ITERATION {i}")
+        test_2d(IMAGE_PATH, model="large", device=device)
+    end_server_measurement("2d.csv")
 
-    #test_2d(IMAGE_PATH, model="nano", device=device)
+    start_server_measurement("3d.csv")
+    for i in range(NUM_ITERATIONS):
+        print(f"ITERATION {i}")
+        test_3d(IMAGE_PATH, model="Res", device=device)
+    end_server_measurement("3d.csv")
 
-    #test_3d(IMAGE_PATH, model="Res", device=device)
-
-    test_ldpc(num_prb=100, num_layers=1, esno_db=8.4)
-
-    #end_server_measurement()
+    start_server_measurement("ldpc.csv")
+    for i in range(NUM_ITERATIONS):
+        print(f"ITERATION {i}")
+        test_ldpc(num_prb=100, num_layers=1, esno_db=8.4)
+    end_server_measurement("ldpc.csv")
