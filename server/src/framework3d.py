@@ -22,6 +22,11 @@ sys.dont_write_bytecode = True
 sys.path.append(os.getcwd())
 np.set_printoptions(suppress=True)
 
+# Globals
+PARAMS = None
+CFG = None
+MODEL = None
+
 def drawn_detections(detections, threshold, cats, im, K, cfg):
     n_det = len(detections)
     meshes = []
@@ -45,7 +50,7 @@ def drawn_detections(detections, threshold, cats, im, K, cfg):
             box_mesh = util.mesh_cuboid(bbox3D, pose.tolist(), color=color)
             meshes.append(box_mesh)
 
-    print('File with {} detections'.format(len(meshes)))
+    #print('File with {} detections'.format(len(meshes)))
 
     if len(meshes) > 0:
         return vis.draw_scene_view(im, K, meshes, text=meshes_text, scale=im.shape[0], blend_weight=0.5, blend_weight_overlay=0.85, device=cfg.MODEL.DEVICE)
@@ -139,15 +144,19 @@ def setup(params):
     return cfg
 
 def complete_3d_object_detection(params, image):
-    cfg = setup(params)
-    model = build_model(cfg)
-    
-    DetectionCheckpointer(model).resume_or_load(
-        cfg.MODEL.WEIGHTS, resume=True
-    )
+    global PARAMS, CFG, MODEL
+
+    if PARAMS is None or CFG is None or MODEL is None:
+        PARAMS = params
+        CFG = setup(PARAMS)
+        MODEL = build_model(CFG)
+        
+        DetectionCheckpointer(MODEL).resume_or_load(
+            CFG.MODEL.WEIGHTS, resume=True
+        )
 
     with torch.no_grad():
-        return do_test(params, cfg, model, image)
+        return do_test(PARAMS, CFG, MODEL, image)
 
 class Parameters:
     def __init__(self, threshold, focal_length, principal_point, display, model, device):

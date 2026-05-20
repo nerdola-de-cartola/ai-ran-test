@@ -6,6 +6,8 @@ YOLO_MODEL_NANO = YOLO("models/yolov8n.pt")
 YOLO_MODEL_MEDIUM = YOLO("models/yolov8m.pt")
 YOLO_MODEL_LARGE = YOLO("models/yolov8x.pt")
 
+MODEL = None
+
 def write_boxes_to_image(results, image, names):
     for result in results:
         boxes = result.boxes
@@ -47,8 +49,12 @@ def infer(image, model, device):
     return results
 
 def object_detection(image, model_type, device):
-    model = get_model(model_type)
-    results = infer(image, model, device)
-    write_boxes_to_image(results, image, model.names)
+    global MODEL
+
+    if MODEL is None:
+        MODEL = get_model(model_type)
+
+    results = infer(image, MODEL, device)
+    write_boxes_to_image(results, image, MODEL.names)
     return image
 
