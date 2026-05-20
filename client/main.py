@@ -189,5 +189,7 @@ async def main():
     await experiment("3d.csv", lambda: test_3d(IMAGE_PATH, model="Res", device=device))
     await experiment("ldpc.csv", lambda: test_ldpc(num_prb=100, num_layers=1, esno_db=8.4))
 
+    await SESSION.close()
+
 if __name__ == "__main__":
     asyncio.run(main())
